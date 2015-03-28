@@ -22,7 +22,7 @@ lexer = T.makeTokenParser $ T.LanguageDef {
   T.nestedComments = True,
   T.identStart = letter,
   T.identLetter = alphaNum <|> char '_',
-  T.opStart = oneOf "+-*/=<>&|:;",
+  T.opStart = oneOf "+-*/=<>&|:;,",
   T.opLetter = oneOf ">=", -- The only multi-character operators are <> >= <= :=
   T.reservedNames = ["type", "array", "var", "function", "let", "in", "end",
                    "nil", "of", "if", "then", "else", "while", "do", "for", "to",
@@ -40,15 +40,20 @@ data Token = Identifier Text
            | Int Integer
            | Nat Integer
            | Comment Text
-           | LBrack | RBrack | LParen | RParen
-           | Semi | Colon
+           | LBrack | RBrack | LBrace | RBrace | LParen | RParen
+           | Semi | Colon | Comma
            deriving (Show,Eq)
 
 reserved = T.reserved lexer
 reservedOp = T.reservedOp lexer
 ws = T.whiteSpace lexer
+dot = T.dot lexer >> return ()
+brackets = T.brackets lexer
+braces = T.braces lexer
+parens = T.parens lexer
 
-identifier = (Identifier . pack) <$> T.identifier lexer
+
+identifier' = (Identifier . pack) <$> T.identifier lexer
 type' = Type <$ reserved "type"
 array' = Array <$ reserved "array"
 var' = Var <$ reserved "var"
@@ -65,6 +70,7 @@ do' = Do <$ reserved "do"
 for' = For <$ reserved "for"
 to' = To <$ reserved "to"
 break' = Break <$ reserved "break"
+nil' = Nil <$ reserved "nil"
 plus = Plus <$ reservedOp "+"
 minus = Minus <$ reservedOp "-"
 times = Times <$ reservedOp "*"
@@ -77,26 +83,30 @@ gte = Gte <$ reservedOp ">="
 lte = Lte <$ reservedOp "<="
 and = And <$ reservedOp "&"
 or = Or <$ reservedOp "|"
-assign = Assign <$ reservedOp ":="
-stringLit = (StringLit . pack) <$> T.stringLiteral lexer
-int = Int <$> T.integer lexer
-nat = Nat <$> T.natural lexer
+assign' = Assign <$ reservedOp ":="
+stringLit' = (StringLit . pack) <$> T.stringLiteral lexer
+int' = Int <$> T.integer lexer
+nat' = Nat <$> T.natural lexer
 whitespaced c = ws *> char c <* ws
 lBrack = LBrack <$ whitespaced '['
 rBrack = RBrack <$ whitespaced ']'
+lBrace = LBrace <$ whitespaced '{'
+rBrace = RBrace <$ whitespaced '}'
 lParen = LParen <$ whitespaced '('
 rParen = RParen <$ whitespaced ')'
 semi = Semi <$ reservedOp ";"
 colon = Colon <$ reservedOp ":"
+comma = Comma <$ reservedOp ","
+
 
 lexLanguage :: Parsec Text u [Token]
 lexLanguage = ws >> (many $ choice [
-  identifier,
+  identifier',
   type', array', var', function', let', in', end', of', if', then', else',
   while', do', for', to', break',
-  plus, minus, times, div, eq, neq, gt, lt, gte, lte, and, or, assign,
-  stringLit,
-  int, nat,
+  plus, minus, times, div, eq, neq, gt, lt, gte, lte, and, or, assign',
+  stringLit',
+  int', nat',
   lBrack, rBrack, lParen, rParen
   ,semi, colon
   ])
