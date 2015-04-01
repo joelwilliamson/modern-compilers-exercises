@@ -40,6 +40,8 @@ data Expr = LValueId Identifier
           | Let [Decl] Expr -- let decs in exps end
             deriving (Show,Eq)
 
+parseTiger = parse (L.ws *> expression) ""
+
 parseE = parse expression ""
 
 expression :: Parsec Text u Expr
@@ -55,7 +57,6 @@ lvalue = identifier >>= (rest . LValueId)
 
 identifier :: Parsec Text u Identifier
 identifier = (\(L.Identifier i) -> i) <$> L.identifier'
-
 nil = L.nil' >> return Nil
 
 sequence :: Parsec Text u Expr
@@ -83,7 +84,7 @@ arithmetic = boolOr
         boolAnd = chainl1 comparison (L.and *> pure Or)
         boolOr = chainl1 boolAnd (L.or *> pure And)
 factor = literal <|> sequence <|> functionCall <|> assignment
-literal = int <|> void <|> record <|> array <|> stringLit
+literal = int <|> void <|> record <|> array <|> stringLit <|> nil
 record = Record <$> try (identifier <* L.lBrace) <*> sepBy1 recordField L.comma <* L.rBrace
   where recordField = do
           id <- identifier
