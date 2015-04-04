@@ -36,12 +36,15 @@ data Expr = LValueId Identifier
 
 data Decl = TypeDec Identifier Type
           | VarDec Identifier Expr
-          | TVarDec Identifier Identifier Expr -- id : tpye-id := expr
-          | FunDec Identifier [(Identifier,Identifier)] Expr
-          | TFunDec Identifier [(Identifier,Identifier)] Identifier Expr -- function id (a1:t1,a2:t2,...) :tr = expr
+          | TVarDec Identifier Type Expr -- id : tpye-id := expr
+          | FunDec Identifier [(Identifier,Type)] Expr
+          | TFunDec Identifier [(Identifier,Type)] Type Expr -- function id (a1:t1,a2:t2,...) :tr = expr
           deriving (Show,Eq)
 
 data Type = NamedType Identifier
-          | RecType [(Identifier,Identifier)] -- { f1:t1,f2:t2 ...}
-          | ArrType Identifier
+          | RecType [(Identifier,Type)] -- { f1:t1,f2:t2 ...}
+          | ArrType Type
+	  | FuncType [Type] Type
+	  | Top -- This is the type of nil
+	  | VoidT -- typeof(())
           deriving (Show,Eq)
