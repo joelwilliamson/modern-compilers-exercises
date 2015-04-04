@@ -5,34 +5,32 @@ module Parse where
 import qualified Lexer as L
 import AST
 
-import Text.Parsec
+import Text.Parsec hiding (State)
 import Data.Text hiding (break)
+import Control.Monad.State hiding (void,sequence)
+import Data.Functor.Identity(Identity)
 
 import Control.Applicative hiding ((<|>),many)
 
 import Prelude hiding (break,sequence)
 
 
-parseTiger = parse (L.ws *> expression) ""
+parseTiger text = fst $ runState (runParserT (L.ws *> expression) () "" text) 0
 
-parseE = parse expression ""
+parseE text = fst $ runState (runParserT expression () "" text) 0
 
-expression :: Parsec Text u Expr
 expression = letE <|> arithmetic
              <|> assignment <|> ifThenElse <|> ifThen
              <|> while <|> for <|> break
 
-lvalue :: Parsec Text u Expr
 lvalue = identifier >>= (rest . LValueId)
   where rest inner = (LValueField inner <$> (L.dot >> identifier) >>= rest)
                      <|> (LValueSubscript inner <$> L.brackets (expression) >>= rest)
                      <|> return inner
 
-identifier :: Parsec Text u Identifier
 identifier = (\(L.Identifier i) -> i) <$> L.identifier'
 nil = L.nil' >> return Nil
 
-sequence :: Parsec Text u Expr
 sequence = Seq <$> L.parens (sepBy expression L.semi)
 
 void = Void <$ try (L.lParen >> L.rParen)
@@ -78,25 +76,34 @@ for = For <$> (L.for' *> identifier) <*> (L.assign' *> expression) <*> (L.to' *>
 break = Break <$ L.break'
 letE = Let <$> (L.let' *> many decl <* L.in') <*> (expression <* L.end')
 
+getNextId :: Enum a => ParsecT s u (State a) a
+getNextId = do
+	  current <- get
+	  put $ succ current
+	  return current
 
-parseD = parse decl ""
+parseD text = fst $ runState (runParserT decl () "" text) 0
 
+decl :: ParsecT Text u (State UniqueId) Decl
 decl = typeDec <|> varDec <|> funDec
 tyField = (,) <$> identifier <*> (L.colon *> namedType)
+namedType :: ParsecT Text u (State UniqueId) Type
 namedType = NamedType <$> identifier
-typeDec = TypeDec <$> (L.type' *> identifier) <*> (L.eq *> typeVal)
-  where typeVal :: Parsec Text u Type
+typeDec = TypeDec <$> (L.type' *> identifier) <*> (L.eq *> typeVal) <*> getNextId
+  where typeVal :: ParsecT Text u (State UniqueId) Type
         typeVal = namedType
                   <|> (RecType <$> L.braces (sepBy tyField L.comma))
                   <|> (ArrType <$> (L.array' *> (L.of' *> namedType)))
-varDec = L.var' *> ((VarDec <$> try (identifier <* L.assign') <*> expression)
-                    <|> (TVarDec <$> identifier <*> (L.colon *> namedType) <*> (L.assign' *> expression)))
-funDec :: Parsec Text u Decl
+
+varDec = L.var' *> ((VarDec <$> try (identifier <* L.assign') <*> expression <*> getNextId)
+                    <|> (TVarDec <$> identifier <*> (L.colon *> namedType) <*> (L.assign' *> expression) <*> getNextId))
+
+funDec :: ParsecT Text u (State UniqueId) Decl 
 funDec = do
   funId <- L.function' *> identifier
   args <- L.parens (sepBy tyField L.comma)
-  TFunDec funId args <$> (L.colon *> namedType) <*> (L.eq *> expression)
-    <|> FunDec funId args <$> (L.eq *> expression)
+  TFunDec funId args <$> (L.colon *> namedType) <*> (L.eq *> expression) <*> getNextId
+    <|> FunDec funId args <$> (L.eq *> expression) <*> getNextId
 
 instance Eq ParseError where
   _ == _ = False
@@ -115,7 +122,7 @@ expressionTests = Prelude.and [
   ]
   
 declTests = Prelude.and [
-  parseD "type point = {x:int, y:int}" == Right (TypeDec "point" (RecType [("x",NamedType "int"),("y",NamedType "int")])),
-  parseD "type ai = array of int" == Right (TypeDec "ai" (ArrType $ NamedType"int")),
-  parseD "function square (x:int) : int = x * x" == Right (TFunDec "square" [("x",NamedType "int")] (NamedType "int") (Mult (LValueId "x") (LValueId "x")))
+  parseD "type point = {x:int, y:int}" == Right (TypeDec "point" (RecType [("x",NamedType "int"),("y",NamedType "int")]) 0),
+  parseD "type ai = array of int" == Right (TypeDec "ai" (ArrType $ NamedType"int") 0),
+  parseD "function square (x:int) : int = x * x" == Right (TFunDec "square" [("x",NamedType "int")] (NamedType "int") (Mult (LValueId "x") (LValueId "x")) 0)
   ]

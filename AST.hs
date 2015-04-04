@@ -33,12 +33,13 @@ data Expr = LValueId Identifier
           | Let [Decl] Expr -- let decs in exps end
             deriving (Show,Eq)
 
+type UniqueId = Integer
 
-data Decl = TypeDec Identifier Type
-          | VarDec Identifier Expr
-          | TVarDec Identifier Type Expr -- id : tpye-id := expr
-          | FunDec Identifier [(Identifier,Type)] Expr
-          | TFunDec Identifier [(Identifier,Type)] Type Expr -- function id (a1:t1,a2:t2,...) :tr = expr
+data Decl = TypeDec Identifier Type UniqueId
+          | VarDec Identifier Expr UniqueId
+          | TVarDec Identifier Type Expr UniqueId-- id : tpye-id := expr
+          | FunDec Identifier [(Identifier,Type)] Expr UniqueId
+          | TFunDec Identifier [(Identifier,Type)] Type Expr UniqueId -- function id (a1:t1,a2:t2,...) :tr = expr
           deriving (Show,Eq)
 
 data Type = NamedType Identifier

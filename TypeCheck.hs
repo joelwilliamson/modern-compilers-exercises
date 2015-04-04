@@ -195,20 +195,20 @@ typeCheck Break = return VoidT
 typeCheck (Let ds e) = letCheck (splitDeclarations ds) e
 
 letCheck :: [[Decl]] -> Expr -> ReaderT (M.Map Identifier Type) (Either String) Type
-letCheck (ts@(TypeDec _ _:_):ds) e = do
+letCheck (ts@(TypeDec _ _ _:_):ds) e = do
 	 let bindings = map extractSigs ts
 	 newEnv <- insertMany bindings <$> ask
 	 local (const newEnv) $ letCheck ds e
-	 where extractSigs (TypeDec i t) = (i,t)
+	 where extractSigs (TypeDec i t _) = (i,t)
 	       extractSigs _ = error "Encountered a non-type binding"
-letCheck ((VarDec i ve:vs):ds) e = do
+letCheck ((VarDec i ve _:vs):ds) e = do
 	 t <- typeCheck ve
 	 local (M.insert i t) $ letCheck (vs:ds) e
-letCheck ((TVarDec i t v:vs):ds) e = do
+letCheck ((TVarDec i t v _:vs):ds) e = do
 	 typeCheck v >>= mergeTypes ("Type of variable " ++ show i) t
 	 local (M.insert i t) $ letCheck (vs:ds) e
-letCheck (fs@(FunDec _ _ _:_):ds) e = letFCheck fs ds e
-letCheck (fs@(TFunDec _ _ _ _:_):ds) e = letFCheck fs ds e
+letCheck (fs@(FunDec _ _ _ _:_):ds) e = letFCheck fs ds e
+letCheck (fs@(TFunDec _ _ _ _ _:_):ds) e = letFCheck fs ds e
 letCheck ([]:ds) e = letCheck ds e
 letCheck [] e = typeCheck e
 --letCheck ds e = error $ "Encountered unexpected pattern: ds=" ++ show ds ++ "\te=" ++ show e
@@ -218,32 +218,32 @@ letFCheck funcs ds e = do
 	  newEnv <- insertMany bindings <$> ask
 	  local (const newEnv) $ mapM typeCheckDecl funcs
 	  local (const newEnv) $ letCheck ds e
-	  where extractSig (FunDec i args _) = (i,FuncType (map snd args) VoidT)
-	  	extractSig (TFunDec i args r _) = (i,FuncType (map snd args) r)
-		typeCheckFun (FunDec _ _ e) = typeCheck e
-		typeCheckFun (TFunDec i _ r e) = typeCheck e >>= mergeTypes ("Return type of function " ++ show i)  r
+	  where extractSig (FunDec i args _ _) = (i,FuncType (map snd args) VoidT)
+	  	extractSig (TFunDec i args r _ _) = (i,FuncType (map snd args) r)
+		typeCheckFun (FunDec _ _ e _) = typeCheck e
+		typeCheckFun (TFunDec i _ r e _) = typeCheck e >>= mergeTypes ("Return type of function " ++ show i)  r
 
 splitDeclarations :: [Decl] -> [[Decl]]
 splitDeclarations = L.groupBy declType
-		  where declType (TypeDec _ _) (TypeDec _ _) = True
-		  	declType (VarDec _ _) (VarDec _ _) = True
-			declType (TVarDec _ _ _) (TVarDec _ _ _) = True
-			declType (VarDec _ _) (TVarDec _ _ _) = True
-			declType (TVarDec _ _ _) (VarDec _ _) = True
-			declType (FunDec _ _ _) (FunDec _ _ _) = True
-			declType (TFunDec _ _ _ _) (TFunDec _ _ _ _) = True
-			declType (FunDec _ _ _) (TFunDec _ _ _ _) = True
-			declType (TFunDec _ _ _ _) (FunDec _ _ _) = True
+		  where declType (TypeDec _ _ _) (TypeDec _ _ _) = True
+		  	declType (VarDec _ _ _) (VarDec _ _ _) = True
+			declType (TVarDec _ _ _ _) (TVarDec _ _ _ _) = True
+			declType (VarDec _ _ _) (TVarDec _ _ _ _) = True
+			declType (TVarDec _ _ _ _) (VarDec _ _ _) = True
+			declType (FunDec _ _ _ _) (FunDec _ _ _ _) = True
+			declType (TFunDec _ _ _ _ _) (TFunDec _ _ _ _ _) = True
+			declType (FunDec _ _ _ _) (TFunDec _ _ _ _ _) = True
+			declType (TFunDec _ _ _ _ _) (FunDec _ _ _ _) = True
 			declType _ _ = False
 
 typeCheckDecl :: Decl -> ReaderT (M.Map Identifier Type) (Either String) (M.Map Identifier Type)
-typeCheckDecl (TypeDec i t) = M.insert i t <$> ask
-typeCheckDecl (VarDec i e) = M.insert i <$> typeCheck e <*> ask
-typeCheckDecl (TVarDec i t e) = M.insert i <$> (typeCheck e >>= mergeTypes ("In variable declaration " ++ show i ++ "=" ++ show e) t) <*> ask
-typeCheckDecl (FunDec i args body) = do
+typeCheckDecl (TypeDec i t _) = M.insert i t <$> ask
+typeCheckDecl (VarDec i e _) = M.insert i <$> typeCheck e <*> ask
+typeCheckDecl (TVarDec i t e _) = M.insert i <$> (typeCheck e >>= mergeTypes ("In variable declaration " ++ show i ++ "=" ++ show e) t) <*> ask
+typeCheckDecl (FunDec i args body _) = do
 	      bodyType <- local (insertMany args) $ typeCheck body
 	      M.insert i (FuncType (map snd args) bodyType) <$> ask
-typeCheckDecl (TFunDec i args rt body) = do
+typeCheckDecl (TFunDec i args rt body _) = do
 	      bodyType <- local (insertMany args) $ typeCheck body
 	      return . toEither $ bodyType == rt
 	      M.insert i (FuncType (map snd args) bodyType) <$> ask

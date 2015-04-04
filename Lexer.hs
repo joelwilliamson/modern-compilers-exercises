@@ -14,7 +14,7 @@ import Data.Text
 
 import Prelude hiding (div,and,or)
 
-lexer:: T.GenTokenParser Text u Identity
+lexer:: (Monad m) => T.GenTokenParser Text u m
 lexer = T.makeTokenParser $ T.LanguageDef {
   T.commentStart = "/*",
   T.commentEnd = "*/",
