@@ -1,8 +1,8 @@
 let
-        type any = {any : int}
+        type Any = {any : int}
         var buffer := getchar()
 
-        function readint(any: any) : int =
+        function readint(any: Any) : int =
                  let var i := 0
                      function isdigit(s : string) : int =
                               ord(buffer)>=ord("0") & ord(buffer)<=ord("9")
@@ -15,7 +15,7 @@ let
                  end
          type list = {first: int, rest: list}
          function readlist() : list =
-                  let var any := any{any=0}
+                  let var any := Any{any=0}
                       var i := readint(any)
                   in if any.any then
                         list {first=i,rest=readlist()}
