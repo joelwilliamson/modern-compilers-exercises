@@ -82,19 +82,20 @@ letE = Let <$> (L.let' *> many decl <* L.in') <*> (expression <* L.end')
 parseD = parse decl ""
 
 decl = typeDec <|> varDec <|> funDec
-tyField = (,) <$> identifier <*> (L.colon *> identifier)
+tyField = (,) <$> identifier <*> (L.colon *> namedType)
+namedType = NamedType <$> identifier
 typeDec = TypeDec <$> (L.type' *> identifier) <*> (L.eq *> typeVal)
   where typeVal :: Parsec Text u Type
-        typeVal = (NamedType <$> identifier)
+        typeVal = namedType
                   <|> (RecType <$> L.braces (sepBy tyField L.comma))
-                  <|> (ArrType <$> (L.array' *> (L.of' *> identifier)))
+                  <|> (ArrType <$> (L.array' *> (L.of' *> namedType)))
 varDec = L.var' *> ((VarDec <$> try (identifier <* L.assign') <*> expression)
-                    <|> (TVarDec <$> identifier <*> (L.colon *> identifier) <*> (L.assign' *> expression)))
+                    <|> (TVarDec <$> identifier <*> (L.colon *> namedType) <*> (L.assign' *> expression)))
 funDec :: Parsec Text u Decl
 funDec = do
   funId <- L.function' *> identifier
   args <- L.parens (sepBy tyField L.comma)
-  TFunDec funId args <$> (L.colon *> identifier) <*> (L.eq *> expression)
+  TFunDec funId args <$> (L.colon *> namedType) <*> (L.eq *> expression)
     <|> FunDec funId args <$> (L.eq *> expression)
 
 instance Eq ParseError where
@@ -114,7 +115,7 @@ expressionTests = Prelude.and [
   ]
   
 declTests = Prelude.and [
-  parseD "type point = {x:int, y:int}" == Right (TypeDec "point" (RecType [("x","int"),("y","int")])),
-  parseD "type ai = array of int" == Right (TypeDec "ai" (ArrType "int")),
-  parseD "function square (x:int) : int = x * x" == Right (TFunDec "square" [("x","int")] "int" (Mult (LValueId "x") (LValueId "x")))
+  parseD "type point = {x:int, y:int}" == Right (TypeDec "point" (RecType [("x",NamedType "int"),("y",NamedType "int")])),
+  parseD "type ai = array of int" == Right (TypeDec "ai" (ArrType $ NamedType"int")),
+  parseD "function square (x:int) : int = x * x" == Right (TFunDec "square" [("x",NamedType "int")] (NamedType "int") (Mult (LValueId "x") (LValueId "x")))
   ]
