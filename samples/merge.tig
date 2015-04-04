@@ -44,8 +44,9 @@ let
                   if l=nil
                   then print("\n")
                   else (printint(l.first);
-                       print(printlist(l.rest)))
+                       print(" ");
+		       printlist(l.rest))
 
 /* BODY OF MAIN PROGRAM */
-in printlist(merge(readlist(),readlist()))
+in (printlist(merge(readlist(),readlist()));merge(readlist(),readlist()))
 end
