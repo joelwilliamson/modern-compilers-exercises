@@ -4,10 +4,6 @@ module TypeCheck where
 
 import AST
 
---These are needed for testing
-import Parse (parseTiger)
-import Data.Text.IO
-
 import qualified Data.Map as M
 import Control.Monad
 import Control.Monad.Reader
@@ -247,9 +243,3 @@ typeCheckDecl (TFunDec i args rt body _) = do
 	      bodyType <- local (insertMany args) $ typeCheck body
 	      return . toEither $ bodyType == rt
 	      M.insert i (FuncType (map snd args) bodyType) <$> ask
-
-
-typeCheckFile fileName = do
-	      contents <- Data.Text.IO.readFile fileName
-	      let (Right ast) = parseTiger contents
-	      return $ typeCheckTiger ast
