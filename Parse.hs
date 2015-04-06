@@ -105,9 +105,6 @@ funDec = do
   TFunDec funId args <$> (L.colon *> namedType) <*> (L.eq *> expression) <*> getNextId
     <|> FunDec funId args <$> (L.eq *> expression) <*> getNextId
 
-instance Eq ParseError where
-  _ == _ = False
-
 expressionTests = Prelude.and [
   parseE "int [3] of 4" == Right (Array "int" (IntLit 3) (IntLit 4)),
   parseE "int [3+2] of 4*21" == Right (Array "int" (Add (IntLit 3) (IntLit 2)) (Mult (IntLit 4) (IntLit 21))),
