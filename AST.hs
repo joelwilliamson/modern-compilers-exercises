@@ -7,39 +7,39 @@ type Identifier = Text
 data CompareOp = Eq | Neq | Gt | Lt | Gte | Lte
                deriving (Show,Eq)
 
-data Expr = LValueId Identifier
-          | LValueField Expr Identifier
-          | LValueSubscript Expr Expr
-          | Nil
-          | Seq [Expr] -- Has value of the last expr
-          | Void -- () or let ... in end;
-          | IntLit Integer
-          | StringLit Text
-          | Negation Expr
-          | FunctionCall Identifier [Expr] -- This has a value if it is a function, none for procedure
-          | Add Expr Expr | Sub Expr Expr
-          | Mult Expr Expr | Div Expr Expr
-          | Comp CompareOp Expr Expr
-          | And Expr Expr
-          | Or Expr Expr
-          | Record Identifier [(Identifier,Expr)] -- typeid {id=exp,id=exp,...}
-          | Array Identifier Expr Expr -- typeid [n] of v, duplicates v n times
-          | Assignment Expr Expr -- Compounds share backing and are never released
-          | IfThenElse Expr Expr Expr -- The second two exprs must have the same type
-          | IfThen Expr Expr -- The second expr must not produce a value
-          | While Expr Expr -- e2 produces no value
-          | For Identifier Expr Expr Expr -- for id := e1 to e2 do e3
-          | Break
-          | Let [Decl] Expr -- let decs in exps end
+data Expr a = LValueId Identifier a
+            | LValueField (Expr a) Identifier a
+          | LValueSubscript (Expr a) (Expr a) a
+          | Nil a
+          | Seq [Expr a] a -- Has value of the last expr
+          | Void a -- () or let ... in end;
+          | IntLit Integer a
+          | StringLit Text a
+          | Negation (Expr a) a
+          | FunctionCall Identifier [Expr a] a -- This has a value if it is a function, none for procedure
+          | Add (Expr a) (Expr a) a | Sub (Expr a) (Expr a) a
+          | Mult (Expr a) (Expr a) a | Div (Expr a) (Expr a) a
+          | Comp CompareOp (Expr a) (Expr a) a
+          | And (Expr a) (Expr a) a
+          | Or (Expr a) (Expr a) a
+          | Record Identifier [(Identifier,Expr a)] a -- typeid {id=exp,id=exp,...}
+          | Array Identifier (Expr a) (Expr a) a -- typeid [n] of v, duplicates v n times
+          | Assignment (Expr a) (Expr a) a -- Compounds share backing and are never released
+          | IfThenElse (Expr a) (Expr a) (Expr a) a -- The second two exprs must have the same type
+          | IfThen (Expr a) (Expr a) a -- The second expr must not produce a value
+          | While (Expr a) (Expr a) a -- e2 produces no value
+          | For Identifier (Expr a) (Expr a) (Expr a) a -- for id := e1 to e2 do e3
+          | Break a
+          | Let [Decl a] (Expr a) a -- let decs in exps end
             deriving (Show,Eq)
 
 type UniqueId = Integer
 
-data Decl = TypeDec Identifier Type UniqueId
-          | VarDec Identifier Expr UniqueId
-          | TVarDec Identifier Type Expr UniqueId-- id : tpye-id := expr
-          | FunDec Identifier [(Identifier,Type)] Expr UniqueId
-          | TFunDec Identifier [(Identifier,Type)] Type Expr UniqueId -- function id (a1:t1,a2:t2,...) :tr = expr
+data Decl a = TypeDec UniqueId Identifier Type a
+          | VarDec UniqueId Identifier (Expr a) a
+          | TVarDec UniqueId Identifier Type (Expr a) a -- id : tpye-id := expr
+          | FunDec UniqueId Identifier [(Identifier,Type)] (Expr a) a
+          | TFunDec UniqueId Identifier [(Identifier,Type)] Type (Expr a) a -- function id (a1:t1,a2:t2,...) :tr = expr
           deriving (Show,Eq)
 
 data Type = NamedType Identifier

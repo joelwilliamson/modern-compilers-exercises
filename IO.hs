@@ -1,7 +1,7 @@
 
 module IO where
 
-import Parser
+import Parse
 import TypeCheck
 
 import Data.Text.IO

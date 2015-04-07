@@ -1,4 +1,4 @@
-
+{-# LANGUAGE OverloadedStrings #-}
 
 module TypeCheck where
 
@@ -75,7 +75,7 @@ matchesType e t = do
 	     _ <- mergeTypes "" <$> typeCheck e <*> t
 	     return t
 
-sameType :: Expr -> Expr -> ReaderT (M.Map Identifier Type) (Either String) Type
+sameType :: Show a => Expr a -> Expr a -> ReaderT (M.Map Identifier Type) (Either String) Type
 sameType e1 e2 = do
 	 t1 <- typeCheck e1
 	 t2 <- typeCheck e2
@@ -100,13 +100,14 @@ standardLibraryTypes = M.fromList [
 		     ("not", FuncType [int] int),
 		     ("exit", FuncType [int] VoidT)]
 
+typeCheckTiger :: Show a => Expr a -> Either String Type
 typeCheckTiger prog = runReaderT (typeCheck prog) standardLibraryTypes
 
 -- typecheck takes an expression, and returns the type of the expression
 -- if it has a valid type
-typeCheck :: Expr -> ReaderT (M.Map Identifier Type) (Either String) Type
-typeCheck (LValueId i) = ask >>= (lift . lookup i)
-typeCheck (LValueField rec fieldName) = do
+typeCheck :: Show a => Expr a -> ReaderT (M.Map Identifier Type) (Either String) Type
+typeCheck (LValueId i _) = ask >>= (lift . lookup i)
+typeCheck (LValueField rec fieldName _) = do
 --	  Nothing <- (error . show <$> ask)
 	  recTy <- typeCheck rec >>= canonicalize
 	  case recTy of
@@ -116,19 +117,19 @@ typeCheck (LValueField rec fieldName) = do
 			$ L.lookup fieldName fields
 	       Top -> lift $ Left "Nil type"
 	       t -> lift $ Left $ "Not a record: " ++ show t ++ " in " ++ show rec ++ "." ++ show fieldName
-typeCheck (LValueSubscript arr subscript) = do
+typeCheck (LValueSubscript arr subscript _) = do
 	  subTy <- typeCheck subscript
 	  arrTy <- typeCheck arr
 	  case arrTy of
 	       ArrType t -> (lift $ confirmInt subTy) >> return t
 	       _ -> lift $ Left $ show arrTy ++ " is not an array type"
-typeCheck Nil = return Top
-typeCheck (Seq es) = mapM typeCheck es >>= (return . last)
-typeCheck Void = return VoidT
-typeCheck (IntLit i) = return $ NamedType "int"
-typeCheck (StringLit _) = return $ NamedType "string"
-typeCheck (Negation i) = typeCheck i >>= (lift . confirmInt)
-typeCheck (FunctionCall funcName args) = do
+typeCheck (Nil _) = return Top
+typeCheck (Seq es _) = mapM typeCheck es >>= (return . last)
+typeCheck (Void _) = return VoidT
+typeCheck (IntLit i _) = return $ NamedType "int"
+typeCheck (StringLit _ _) = return $ NamedType "string"
+typeCheck (Negation i _) = typeCheck i >>= (lift . confirmInt)
+typeCheck (FunctionCall funcName args _) = do
 	  FuncType paramTypes retType <- ask >>= (lift . lookup funcName)
 	  argTypes <- mapM (typeCheck >=> canonicalize) args
 	  paramTypes' <- mapM canonicalize paramTypes
@@ -136,12 +137,12 @@ typeCheck (FunctionCall funcName args) = do
 	     then return retType
 	     else lift . Left $ "Argument types don't match in call of " ++ show funcName ++ "  Expected: " ++ show paramTypes' ++ "   Got: " ++ show argTypes
        	  where argsMatch p a = length p == length a && (and $ L.zipWith (==) p a)
-typeCheck (Add e1 e2) = typeCheckArith e1 e2
-typeCheck (Sub e1 e2) = typeCheckArith e1 e2
-typeCheck (Mult e1 e2) = typeCheckArith e1 e2
-typeCheck (Div e1 e2) = typeCheckArith e1 e2
-typeCheck (Comp Eq e1 e2) = sameType e1 e2 >> (return $ NamedType "int")
-typeCheck (Comp _ e1 e2) = do
+typeCheck (Add e1 e2 _) = typeCheckArith e1 e2
+typeCheck (Sub e1 e2 _) = typeCheckArith e1 e2
+typeCheck (Mult e1 e2 _) = typeCheckArith e1 e2
+typeCheck (Div e1 e2 _) = typeCheckArith e1 e2
+typeCheck (Comp Eq e1 e2 _) = sameType e1 e2 >> (return $ NamedType "int")
+typeCheck (Comp _ e1 e2 _) = do
 	  t1 <- typeCheck e1
 	  t2 <- typeCheck e2
 	  lift $ confirmIntString t1
@@ -149,9 +150,9 @@ typeCheck (Comp _ e1 e2) = do
 	  if t1 == t2
 	     then return t1
 	     else lift $ Left "Can't compare values of different type"
-typeCheck (And e1 e2) = typeCheckArith e1 e2
-typeCheck (Or e1 e2) = typeCheckArith e1 e2
-typeCheck (Record typeId fields) = do
+typeCheck (And e1 e2 _) = typeCheckArith e1 e2
+typeCheck (Or e1 e2 _) = typeCheckArith e1 e2
+typeCheck (Record typeId fields _) = do
 	  recType <- ask >>= (lift . lookup typeId)
 	  case recType of
 	       RecType params -> argsMatch fields params >> return recType
@@ -165,81 +166,82 @@ typeCheck (Record typeId fields) = do
 			     then lift $ Right undefined
 			     else lift $ Left $ "Arguments don't match in creation of record " ++ show typeId
 		typesMatch fields params = (==) params <$> mapM typeCheck fields
-typeCheck (Array typeId len val) = do
+typeCheck (Array typeId len val _) = do
 	  isInteger len
 	  arrType <- ask >>= (lift . lookup typeId)
 	  valType <- typeCheck val
 	  mergeTypes ("Array of " ++ show valType) (ArrType valType) arrType
 	  return arrType
-typeCheck (Assignment lval rval) = do
+typeCheck (Assignment lval rval _) = do
 	  sameType lval rval
 	  return VoidT
-typeCheck (IfThenElse c t f) = do
+typeCheck (IfThenElse c t f _) = do
 	  isInteger c
 	  sameType t f
-typeCheck (IfThen c t) = do
+typeCheck (IfThen c t d) = do
 	  isInteger c
-	  sameType t Void
-typeCheck (While c a) = do
+	  sameType t $ Void d
+typeCheck (While c a d) = do
 	  isInteger c
-	  sameType a Void
-typeCheck (For i start end body) = do
+	  sameType a $ Void d
+typeCheck (For i start end body d) = do
 	  isInteger start
 	  isInteger end
 	  local (M.insert i (NamedType "int")) $ typeCheck body
-typeCheck Break = return VoidT
-typeCheck (Let ds e) = letCheck (splitDeclarations ds) e
+typeCheck (Break _) = return VoidT
+typeCheck (Let ds e _) = letCheck (splitDeclarations ds) e
 
-letCheck :: [[Decl]] -> Expr -> ReaderT (M.Map Identifier Type) (Either String) Type
-letCheck (ts@(TypeDec _ _ _:_):ds) e = do
+letCheck :: Show a => [[Decl a]] -> Expr a -> ReaderT (M.Map Identifier Type) (Either String) Type
+letCheck (ts@(TypeDec _ _ _ _:_):ds) e = do
 	 let bindings = map extractSigs ts
 	 newEnv <- insertMany bindings <$> ask
 	 local (const newEnv) $ letCheck ds e
-	 where extractSigs (TypeDec i t _) = (i,t)
+	 where extractSigs (TypeDec _ i t _) = (i,t)
 	       extractSigs _ = error "Encountered a non-type binding"
-letCheck ((VarDec i ve _:vs):ds) e = do
+letCheck ((VarDec _ i ve _:vs):ds) e = do
 	 t <- typeCheck ve
 	 local (M.insert i t) $ letCheck (vs:ds) e
-letCheck ((TVarDec i t v _:vs):ds) e = do
+letCheck ((TVarDec _ i t v _:vs):ds) e = do
 	 typeCheck v >>= mergeTypes ("Type of variable " ++ show i) t
 	 local (M.insert i t) $ letCheck (vs:ds) e
-letCheck (fs@(FunDec _ _ _ _:_):ds) e = letFCheck fs ds e
-letCheck (fs@(TFunDec _ _ _ _ _:_):ds) e = letFCheck fs ds e
+letCheck (fs@(FunDec _ _ _ _ _:_):ds) e = letFCheck fs ds e
+letCheck (fs@(TFunDec _ _ _ _ _ _:_):ds) e = letFCheck fs ds e
 letCheck ([]:ds) e = letCheck ds e
 letCheck [] e = typeCheck e
 --letCheck ds e = error $ "Encountered unexpected pattern: ds=" ++ show ds ++ "\te=" ++ show e
 
+letFCheck :: Show a => [Decl a] -> [[Decl a]] -> Expr a -> ReaderT (M.Map Identifier Type) (Either String) Type
 letFCheck funcs ds e = do
 	  let bindings = map extractSig funcs
 	  newEnv <- insertMany bindings <$> ask
 	  local (const newEnv) $ mapM typeCheckDecl funcs
 	  local (const newEnv) $ letCheck ds e
-	  where extractSig (FunDec i args _ _) = (i,FuncType (map snd args) VoidT)
-	  	extractSig (TFunDec i args r _ _) = (i,FuncType (map snd args) r)
-		typeCheckFun (FunDec _ _ e _) = typeCheck e
-		typeCheckFun (TFunDec i _ r e _) = typeCheck e >>= mergeTypes ("Return type of function " ++ show i)  r
+	  where extractSig (FunDec _ i args _ _) = (i,FuncType (map snd args) VoidT)
+	  	extractSig (TFunDec _ i args r _ _) = (i,FuncType (map snd args) r)
+		typeCheckFun (FunDec _ _ _ _ e) = typeCheck e
+		typeCheckFun (TFunDec _ i _ r e _) = typeCheck e >>= mergeTypes ("Return type of function " ++ show i)  r
 
-splitDeclarations :: [Decl] -> [[Decl]]
+splitDeclarations :: [Decl a] -> [[Decl a]]
 splitDeclarations = L.groupBy declType
-		  where declType (TypeDec _ _ _) (TypeDec _ _ _) = True
-		  	declType (VarDec _ _ _) (VarDec _ _ _) = True
-			declType (TVarDec _ _ _ _) (TVarDec _ _ _ _) = True
-			declType (VarDec _ _ _) (TVarDec _ _ _ _) = True
-			declType (TVarDec _ _ _ _) (VarDec _ _ _) = True
-			declType (FunDec _ _ _ _) (FunDec _ _ _ _) = True
-			declType (TFunDec _ _ _ _ _) (TFunDec _ _ _ _ _) = True
-			declType (FunDec _ _ _ _) (TFunDec _ _ _ _ _) = True
-			declType (TFunDec _ _ _ _ _) (FunDec _ _ _ _) = True
+		  where declType (TypeDec _ _ _ _) (TypeDec _ _ _ _) = True
+		  	declType (VarDec _ _ _ _) (VarDec _ _ _ _) = True
+			declType (TVarDec _ _ _ _ _) (TVarDec _ _ _ _ _) = True
+			declType (VarDec _ _ _ _) (TVarDec _ _ _ _ _) = True
+			declType (TVarDec _ _ _ _ _) (VarDec _ _ _ _) = True
+			declType (FunDec _ _ _ _ _) (FunDec _ _ _ _ _) = True
+			declType (TFunDec _ _ _ _ _ _) (TFunDec _ _ _ _ _ _) = True
+			declType (FunDec _ _ _ _ _) (TFunDec _ _ _ _ _ _) = True
+			declType (TFunDec _ _ _ _ _ _) (FunDec _ _ _ _ _) = True
 			declType _ _ = False
 
-typeCheckDecl :: Decl -> ReaderT (M.Map Identifier Type) (Either String) (M.Map Identifier Type)
-typeCheckDecl (TypeDec i t _) = M.insert i t <$> ask
-typeCheckDecl (VarDec i e _) = M.insert i <$> typeCheck e <*> ask
-typeCheckDecl (TVarDec i t e _) = M.insert i <$> (typeCheck e >>= mergeTypes ("In variable declaration " ++ show i ++ "=" ++ show e) t) <*> ask
-typeCheckDecl (FunDec i args body _) = do
+typeCheckDecl :: (Show a) => Decl a -> ReaderT (M.Map Identifier Type) (Either String) (M.Map Identifier Type)
+typeCheckDecl (TypeDec _ i t _) = M.insert i t <$> ask
+typeCheckDecl (VarDec _ i e _) = M.insert i <$> typeCheck e <*> ask
+typeCheckDecl (TVarDec _ i t e _) = M.insert i <$> (typeCheck e >>= mergeTypes ("In variable declaration " ++ show i ++ "=" ++ show e) t) <*> ask
+typeCheckDecl (FunDec _ i args body _) = do
 	      bodyType <- local (insertMany args) $ typeCheck body
 	      M.insert i (FuncType (map snd args) bodyType) <$> ask
-typeCheckDecl (TFunDec i args rt body _) = do
+typeCheckDecl (TFunDec _ i args rt body _) = do
 	      bodyType <- local (insertMany args) $ typeCheck body
 	      return . toEither $ bodyType == rt
 	      M.insert i (FuncType (map snd args) bodyType) <$> ask
